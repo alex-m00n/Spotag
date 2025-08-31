@@ -63,8 +63,11 @@ Modifiez la valeur `server_port` dans le fichier `spotify_nfc_config.json` :
 
 ### Les liens ne s'ouvrent pas
 - Vérifiez que vous avez un navigateur par défaut configuré
-- Assurez-vous que les liens Spotify sont valides
+- Assurez-vous que les liens Spotify sont valides (+ voir [convertion des liens](#les-liens-se-convertissent-mal))
 - Vérifiez votre connexion internet
+
+### Les liens se convertissent mal
+- C'est surement un album, dans les liens d'album il y a : https://open.spotify.com/intl-fr/album/Abcde123345 le problème vient du intl-fr il fat lee supprimer à la main pour le moment je réglerai le problème sur un prochain commit
 
 
 ## 🤝 Contribution

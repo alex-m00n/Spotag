@@ -273,12 +273,32 @@ class SpotifyNFCGUI:
         # Configuration de la fenêtre
         self.root.configure(bg="#0F0F0F")
         
+        # Configuration de l'icône de la fenêtre
         try:
-            if os.path.exists("spotag.ico"):
-                self.root.iconbitmap("spotag.ico")
-            elif os.path.exists("spotify.ico"):
-                self.root.iconbitmap("spotify.ico")
-        except:
+            # Essayer de charger l'icône avec le chemin absolu
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            icon_paths = [
+                os.path.join(current_dir, "spotag.ico"),
+                "spotag.ico",
+            ]
+            
+            icon_loaded = False
+            for icon_path in icon_paths:
+                if os.path.exists(icon_path):
+                    try:
+                        self.root.iconbitmap(icon_path)
+                        print(f"✅ Icône chargée: {icon_path}")
+                        icon_loaded = True
+                        break
+                    except Exception as e:
+                        print(f"❌ Erreur avec {icon_path}: {e}")
+                        continue
+            
+            if not icon_loaded:
+                print("⚠️ Aucune icône n'a pu être chargée")
+                
+        except Exception as e:
+            print(f"❌ Erreur générale lors du chargement de l'icône: {e}")
             pass
         
         self.config = self.load_config()
