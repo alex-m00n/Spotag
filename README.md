@@ -1,12 +1,12 @@
 ![SpotagLogo](https://raw.githubusercontent.com/alex-m00n/Spotag/main/spotag.png)
 # 🎵 Spotag - Spotify NFC pour PC
 
-Une application Python qui permet d'ouvrir des liens Spotify via NFC ou directement depuis une interface graphique moderne.
+Une application Python qui permet d'ouvrir des liens Spotify sur votre PC via un NFC scanné avec votre téléphone
 
 ## ✨ Fonctionnalités
 
 - **Interface graphique moderne** avec design inspiré de Spotify
-- **Serveur web local** pour recevoir les liens depuis des tags NFC
+- **Serveur web local** pour recevoir les liens depuis des tags NFC scanné avec votre téléphone
 - **Conversion de liens Spotify en lien Spotag** directement depuis l'interface
 - **Contrôle du serveur** (démarrage/arrêt)
 - **Configuration sauvegardée** automatiquement
@@ -63,11 +63,8 @@ Modifiez la valeur `server_port` dans le fichier `spotify_nfc_config.json` :
 
 ### Les liens ne s'ouvrent pas
 - Vérifiez que vous avez un navigateur par défaut configuré
-- Assurez-vous que les liens Spotify sont valides (+ voir [convertion des liens](#les-liens-se-convertissent-mal))
+- Assurez-vous que les liens Spotify sont valides
 - Vérifiez votre connexion internet
-
-### Les liens se convertissent mal
-- C'est surement un album, dans les liens d'album il y a : https://open.spotify.com/intl-fr/album/Abcde123345 le problème vient du intl-fr il fat lee supprimer à la main pour le moment je réglerai le problème sur un prochain commit
 
 
 ## 🤝 Contribution

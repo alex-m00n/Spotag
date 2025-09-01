@@ -1,5 +1,4 @@
 import webbrowser
-from flask import Flask, request
 import threading
 import pystray
 from PIL import Image, ImageDraw
@@ -10,6 +9,7 @@ from tkinter import ttk, messagebox
 import json
 from datetime import datetime
 import socket
+from flask import Flask, request
 
 class ModernButton(tk.Canvas):
     def __init__(self, parent, text, command=None, bg="#1DB954", fg="white", 
@@ -211,424 +211,15 @@ class ModernEntry(tk.Frame):
             self.entry.delete(0, tk.END)
             self.entry.insert(0, text)
 
-class StatusIndicator(tk.Canvas):
-    def __init__(self, parent, size=20, **kwargs):
-        # Récupérer la couleur de fond du parent
-        try:
-            parent_bg = parent.cget("bg")
-        except:
-            try:
-                parent_bg = parent.cget("background")
-            except:
-                parent_bg = "#0F0F0F"
-        
-        # Filtrer les paramètres pour éviter les conflits
-        canvas_kwargs = {k: v for k, v in kwargs.items() if k not in ["bg", "background"]}
-        
-        super().__init__(parent, width=size, height=size, bg=parent_bg, 
-                        highlightthickness=0, relief="flat", **canvas_kwargs)
-        
-        self.size = size
-        self.status = "stopped"  # stopped, running, error
-        
-        self.draw_indicator()
-    
-    def set_status(self, status):
-        self.status = status
-        self.draw_indicator()
-    
-    def draw_indicator(self):
-        self.delete("all")
-        
-        if self.status == "stopped":
-            color = "#FF4444"
-        elif self.status == "running":
-            color = "#1DB954"
-        else:
-            color = "#FF8800"
-        
-        # Cercle principal
-        self.create_oval(2, 2, self.size-2, self.size-2, fill=color, outline="")
-        
-        # Effet de brillance
-        highlight_size = int(self.size * 0.4)
-        self.create_oval(3, 3, 3+highlight_size, 3+highlight_size, 
-                        fill="", outline="", stipple="gray75")
 
-app = Flask(__name__)
 
 CONFIG_FILE = "spotify_nfc_config.json"
 DEFAULT_CONFIG = {
-    "server_port": 5000,
     "auto_start": False,
 }
 
-class SpotifyNFCGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Spotag - Spotify NFC pour PC")
-        self.root.geometry("800x600")
-        self.root.minsize(800, 600)
-        
-        # Configuration de la fenêtre
-        self.root.configure(bg="#0F0F0F")
-        
-        # Configuration de l'icône de la fenêtre
-        try:
-            # Essayer de charger l'icône avec le chemin absolu
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            icon_paths = [
-                os.path.join(current_dir, "spotag.ico"),
-                "spotag.ico",
-            ]
-            
-            icon_loaded = False
-            for icon_path in icon_paths:
-                if os.path.exists(icon_path):
-                    try:
-                        self.root.iconbitmap(icon_path)
-                        print(f"✅ Icône chargée: {icon_path}")
-                        icon_loaded = True
-                        break
-                    except Exception as e:
-                        print(f"❌ Erreur avec {icon_path}: {e}")
-                        continue
-            
-            if not icon_loaded:
-                print("⚠️ Aucune icône n'a pu être chargée")
-                
-        except Exception as e:
-            print(f"❌ Erreur générale lors du chargement de l'icône: {e}")
-            pass
-        
-        self.config = self.load_config()
-        self.server_running = False
-        self.server_thread = None
-        self.setup_styles()
-        self.create_widgets()
-        self.start_server()
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-        
-
-        
-    def get_local_ip(self):
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip
-        except:
-            return "localhost"
-    
-    def setup_styles(self):
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        self.spotify_green = "#1DB954"
-        self.spotify_black = "#0F0F0F"
-        self.spotify_dark_gray = "#1A1A1A"
-        self.spotify_medium_gray = "#2A2A2A"
-        self.spotify_white = "#FFFFFF"
-        self.spotify_light_gray = "#CCCCCC"
-        
-        # Configuration des styles
-        style.configure("Modern.TFrame", background=self.spotify_black)
-        style.configure("Modern.TLabel", background=self.spotify_black, foreground=self.spotify_white)
-        style.configure("Modern.TLabelframe", background=self.spotify_black, bordercolor=self.spotify_medium_gray)
-        style.configure("Modern.TLabelframe.Label", background=self.spotify_black, foreground=self.spotify_white, font=("Segoe UI", 11, "bold"))
-        
-        self.root.configure(bg=self.spotify_black)
-        
-    def create_widgets(self):
-        # Créer un canvas avec scrollbar
-        canvas = tk.Canvas(self.root, bg=self.spotify_black, highlightthickness=0, relief="flat")
-        scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
-        scrollable_frame = tk.Frame(canvas, bg=self.spotify_black, relief="flat", bd=0)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Frame principal avec dégradé
-        main_frame = tk.Frame(scrollable_frame, bg=self.spotify_black, relief="flat", bd=0)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        # En-tête avec logo et titre
-        header_frame = tk.Frame(main_frame, bg=self.spotify_black, relief="flat", bd=0)
-        header_frame.pack(fill=tk.X, pady=(0, 30))
-        
-        # Logo et titre
-        logo_frame = tk.Frame(header_frame, bg=self.spotify_black, relief="flat", bd=0)
-        logo_frame.pack()
-        
-        # Titre principal avec effet de dégradé
-        title_label = tk.Label(logo_frame, 
-                              text="🎵 Spotag", 
-                              font=("Segoe UI", 32, "bold"),
-                              fg=self.spotify_green,
-                              bg=self.spotify_black)
-        title_label.pack()
-        
-        subtitle_label = tk.Label(logo_frame, 
-                                 text="Spotify NFC pour PC", 
-                                 font=("Segoe UI", 16),
-                                 fg=self.spotify_light_gray,
-                                 bg=self.spotify_black)
-        subtitle_label.pack()
-        
-        # Section du serveur
-        server_frame = tk.Frame(main_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        server_frame.pack(fill=tk.X, pady=(0, 25), padx=5)
-        
-        # Titre de section
-        section_title = tk.Label(server_frame, 
-                                text="Contrôle du Serveur", 
-                                font=("Segoe UI", 14, "bold"),
-                                fg=self.spotify_white,
-                                bg=self.spotify_dark_gray)
-        section_title.pack(pady=(20, 15))
-        
-        # Indicateur de statut et label
-        status_frame = tk.Frame(server_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        status_frame.pack(pady=15)
-        
-        self.status_indicator = StatusIndicator(status_frame, size=24)
-        self.status_indicator.pack(side=tk.LEFT, padx=(0, 15))
-        
-        self.status_label = tk.Label(status_frame, 
-                                    text="Serveur: Arrêté", 
-                                    font=("Segoe UI", 12, "bold"),
-                                    fg=self.spotify_white,
-                                    bg=self.spotify_dark_gray)
-        self.status_label.pack(side=tk.LEFT)
-        
-        # Boutons de contrôle
-        button_frame = tk.Frame(server_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        button_frame.pack(pady=20)
-        
-        self.start_button = ModernButton(button_frame, 
-                                        text="Démarrer le Serveur",
-                                        command=self.start_server,
-                                        bg=self.spotify_green,
-                                        active_bg="#1ed760",
-                                        width=180, height=50,
-                                        icon="▶")
-        self.start_button.pack(side=tk.LEFT, padx=10)
-        
-        self.stop_button = ModernButton(button_frame, 
-                                       text="Arrêter le Serveur",
-                                       command=self.stop_server,
-                                       bg=self.spotify_medium_gray,
-                                       active_bg="#505050",
-                                       width=180, height=50,
-                                       icon="⏹")
-        self.stop_button.pack(side=tk.LEFT, padx=10)
-        
-        # URL du serveur
-        url_frame = tk.Frame(server_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        url_frame.pack(pady=20)
-        
-        url_label = tk.Label(url_frame, 
-                            text="URL du serveur:", 
-                            font=("Segoe UI", 10, "bold"), 
-                            fg=self.spotify_white, 
-                            bg=self.spotify_dark_gray)
-        url_label.pack()
-        
-        local_ip = self.get_local_ip()
-        self.url_label = tk.Label(url_frame, 
-                                 text=f"http://{local_ip}:{self.config['server_port']}/spotify",
-                                 font=("Consolas", 11),
-                                 fg=self.spotify_green,
-                                 bg=self.spotify_dark_gray)
-        self.url_label.pack(pady=(8, 0))
-        
-        # Section du convertisseur
-        converter_frame = tk.Frame(main_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        converter_frame.pack(fill=tk.X, pady=(0, 25), padx=5)
-        
-        # Titre de section
-        converter_title = tk.Label(converter_frame, 
-                                  text="Convertisseur d'URL Spotify", 
-                                  font=("Segoe UI", 14, "bold"),
-                                  fg=self.spotify_white,
-                                  bg=self.spotify_dark_gray)
-        converter_title.pack(pady=(20, 15))
-        
-        # Champ de saisie du lien
-        link_frame = tk.Frame(converter_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        link_frame.pack(fill=tk.X, pady=15, padx=20)
-        
-        link_label = tk.Label(link_frame, 
-                             text="Lien Spotify:", 
-                             font=("Segoe UI", 10, "bold"), 
-                             fg=self.spotify_white, 
-                             bg=self.spotify_dark_gray)
-        link_label.pack(anchor=tk.W)
-        
-        self.link_entry = ModernEntry(link_frame, 
-                                     placeholder="https://open.spotify.com/track/...",
-                                     width=50)
-        self.link_entry.pack(fill=tk.X, pady=(8, 0))
-        
-        # Lier l'événement de changement pour la conversion automatique
-        self.link_entry.entry.bind('<KeyRelease>', self.on_link_change)
-        
-        # Champ de résultat
-        result_frame = tk.Frame(converter_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        result_frame.pack(fill=tk.X, pady=(0, 20), padx=20)
-        
-        result_label = tk.Label(result_frame, 
-                               text="URL Spotag:", 
-                               font=("Segoe UI", 10, "bold"), 
-                               fg=self.spotify_white, 
-                               bg=self.spotify_dark_gray)
-        result_label.pack(anchor=tk.W)
-        
-        # Frame pour l'entry et le bouton copier
-        result_input_frame = tk.Frame(result_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
-        result_input_frame.pack(fill=tk.X, pady=(8, 0))
-        
-        self.result_entry = ModernEntry(result_input_frame, 
-                                       placeholder="Entrez un lien Spotify valide",
-                                       width=50)
-        self.result_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # Définir le champ URL Spotag en lecture seule
-        self.result_entry.set_readonly(True)
-        
-        copy_button = ModernButton(result_input_frame, 
-                                  text="Copier",
-                                  command=lambda: self.copy_to_clipboard(self.result_entry.get()),
-                                  bg=self.spotify_medium_gray,
-                                  active_bg="#505050",
-                                  width=100, height=45,
-                                  icon="📋")
-        copy_button.pack(side=tk.RIGHT, padx=(15, 0))
-        
-        # Footer
-        footer_frame = tk.Frame(main_frame, bg=self.spotify_black, relief="flat", bd=0)
-        footer_frame.pack(fill=tk.X, pady=(20, 0))
-        
-        footer_text = tk.Label(footer_frame, 
-                              text="Développé avec ♥ par AlexM00n", 
-                              font=("Segoe UI", 9),
-                              fg=self.spotify_light_gray,
-                              bg=self.spotify_black)
-        footer_text.pack()
-        
-        # Configurer le scroll
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Centrer le contenu dans le canvas
-        def center_content():
-            canvas.update_idletasks()
-            canvas_width = canvas.winfo_width()
-            frame_width = scrollable_frame.winfo_reqwidth()
-            if frame_width < canvas_width:
-                x_offset = (canvas_width - frame_width) // 2
-                canvas.coords(canvas.find_withtag("all")[0], x_offset, 0)
-        
-        # Centrer après le chargement et lors du redimensionnement
-        self.root.after(100, center_content)
-        canvas.bind('<Configure>', lambda e: center_content())
-        
-        # Lier les événements de scroll
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
-    def load_config(self):
-        try:
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception as e:
-            print(f"Erreur lors du chargement de la configuration: {e}")
-        return DEFAULT_CONFIG.copy()
-    
-    def save_config(self):
-        try:
-            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Erreur lors de la sauvegarde de la configuration: {e}")
-    
-    def start_server(self):
-        if not self.server_running:
-            try:
-                self.server_thread = threading.Thread(target=self.run_server, daemon=True)
-                self.server_thread.start()
-                self.server_running = True
-                self.status_label.config(text="Serveur: En cours d'exécution")
-                self.status_indicator.set_status("running")
-                self.start_button.configure(bg=self.spotify_medium_gray, active_bg="#505050")
-                self.stop_button.configure(bg=self.spotify_green, active_bg="#1ed760")
-                messagebox.showinfo("Succès", "Serveur démarré avec succès!")
-            except Exception as e:
-                self.status_indicator.set_status("error")
-                messagebox.showerror("Erreur", f"Impossible de démarrer le serveur: {e}")
-    
-    def stop_server(self):
-        if self.server_running:
-            self.server_running = False
-            self.status_label.config(text="Serveur: Arrêté")
-            self.status_indicator.set_status("stopped")
-            self.start_button.configure(bg=self.spotify_green, active_bg="#1ed760")
-            self.stop_button.configure(bg=self.spotify_medium_gray, active_bg="#505050")
-            messagebox.showinfo("Info", "Serveur arrêté")
-    
-    def run_server(self):
-        app.run(host="0.0.0.0", port=self.config['server_port'])
-    
-    def on_link_change(self, event=None):
-        self.convert_link()
-    
-    def convert_link(self):
-        link = self.link_entry.get().strip()
-        
-        if not link or link == "https://open.spotify.com/track/...":
-            self.result_entry.set_text("Entrez un lien Spotify valide")
-            return
-        
-        if not link.startswith("https://open.spotify.com/"):
-            self.result_entry.set_text("Lien Spotify invalide")
-            return
-        
-        try:
-            parts = link.split('/')
-            if len(parts) >= 5:
-                spotify_type = parts[3]
-                spotify_id = parts[4].split('?')[0]
-                spotify_uri = f"spotify:{spotify_type}:{spotify_id}"
-                local_ip = self.get_local_ip()
-                spotag_url = f"http://{local_ip}:{self.config['server_port']}/spotify?link={spotify_uri}"
-                self.result_entry.set_text(spotag_url)
-            else:
-                raise ValueError("Format d'URL invalide")
-        except Exception as e:
-            self.result_entry.set_text(f"Erreur: {str(e)}")
-    
-    def copy_to_clipboard(self, text):
-        try:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(text)
-            messagebox.showinfo("Succès", "Texte copié dans le presse-papiers!")
-        except Exception as e:
-            messagebox.showerror("Erreur", f"Impossible de copier: {e}")
-    
-    def on_closing(self):
-        if messagebox.askyesno("Quitter", "Voulez-vous vraiment quitter l'application?"):
-            self.save_config()
-            self.root.destroy()
-            os._exit(0)
+# Créer l'application Flask
+app = Flask(__name__)
 
 @app.route("/spotify")
 def open_spotify():
@@ -818,39 +409,590 @@ def open_spotify():
     """
     return html_content, 200
 
-def create_image():
-    # Essayer de charger l'icône spotag2.png
-    try:
-        if os.path.exists("spotag2.png"):
-            # Convertir l'icône ICO en image PIL
-            from PIL import Image
-            import io
+class SpotifyNFCGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Spotag - Spotify NFC pour PC")
+        self.root.geometry("800x600")
+        self.root.minsize(800, 600)
+        
+        # Configuration de la fenêtre
+        self.root.configure(bg="#0F0F0F")
+        
+        # Configuration de l'icône de la fenêtre
+        try:
+            # Essayer de charger l'icône avec le chemin absolu
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            icon_paths = [
+                os.path.join(current_dir, "spotag.ico"),
+                os.path.join(current_dir, "spotag2.png"),
+                "spotag.ico",
+                "spotag2.png",
+            ]
             
-            # Ouvrir l'icône ICO et la redimensionner
-            icon = Image.open("spotag2.png")
-            # Redimensionner à 64x64 pour la barre système
-            icon = icon.resize((64, 64), Image.Resampling.LANCZOS)
-            return icon
-    except Exception as e:
-        print(f"Impossible de charger spotag2.png: {e}")
+            icon_loaded = False
+            for icon_path in icon_paths:
+                if os.path.exists(icon_path):
+                    try:
+                        if icon_path.endswith('.png'):
+                            # Convertir PNG en ICO temporaire
+                            from PIL import Image
+                            img = Image.open(icon_path)
+                            temp_ico = os.path.join(current_dir, "temp_icon.ico")
+                            img.save(temp_ico, format='ICO', sizes=[(16,16), (32,32), (48,48), (64,64)])
+                            self.root.iconbitmap(temp_ico)
+                            # Nettoyer le fichier temporaire
+                            try:
+                                os.remove(temp_ico)
+                            except:
+                                pass
+                        else:
+                            self.root.iconbitmap(icon_path)
+                        print(f"✅ Icône chargée: {icon_path}")
+                        icon_loaded = True
+                        break
+                    except Exception as e:
+                        print(f"❌ Erreur avec {icon_path}: {e}")
+                        continue
+            
+            if not icon_loaded:
+                print("⚠️ Aucune icône n'a pu être chargée")
+                
+        except Exception as e:
+            print(f"❌ Erreur générale lors du chargement de l'icône: {e}")
+            pass
+        
+        self.config = self.load_config()
+        self.tray_icon = None
+        self.setup_styles()
+        self.create_widgets()
+        self.setup_system_tray()
+        self.start_flask_server()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+    def get_local_ip(self):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except:
+            return "localhost"
     
-    # Fallback: Icône simple (cercle vert façon Spotify)
-    image = Image.new("RGB", (64, 64), (25, 20, 20))
-    draw = ImageDraw.Draw(image)
-    draw.ellipse((8, 8, 56, 56), fill=(30, 215, 96))
-    return image
+    def start_flask_server(self):
+        """Démarre le serveur Flask dans un thread séparé"""
+        def run_server():
+            try:
+                app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+            except Exception as e:
+                print(f"Erreur lors du démarrage du serveur Flask: {e}")
+        
+        # Démarrer le serveur dans un thread séparé
+        flask_thread = threading.Thread(target=run_server, daemon=True)
+        flask_thread.start()
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Serveur Flask démarré sur http://{self.get_local_ip()}:5000")
+    
+    def setup_styles(self):
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        self.spotify_green = "#1DB954"
+        self.spotify_black = "#0F0F0F"
+        self.spotify_dark_gray = "#1A1A1A"
+        self.spotify_medium_gray = "#2A2A2A"
+        self.spotify_white = "#FFFFFF"
+        self.spotify_light_gray = "#CCCCCC"
+        
+        # Configuration des styles
+        style.configure("Modern.TFrame", background=self.spotify_black)
+        style.configure("Modern.TLabel", background=self.spotify_black, foreground=self.spotify_white)
+        style.configure("Modern.TLabelframe", background=self.spotify_black, bordercolor=self.spotify_medium_gray)
+        style.configure("Modern.TLabelframe.Label", background=self.spotify_black, foreground=self.spotify_white, font=("Segoe UI", 11, "bold"))
+        
+        self.root.configure(bg=self.spotify_black)
+        
+    def create_widgets(self):
+        # Créer un canvas avec scrollbar
+        canvas = tk.Canvas(self.root, bg=self.spotify_black, highlightthickness=0, relief="flat", bd=0)
+        
+        class YouTubeScrollbar(tk.Canvas):
+            def __init__(self, parent, **kwargs):
+                super().__init__(parent, **kwargs)
+                self.parent = parent
+                self.scrollable_widget = None
+                self.scrollbar_width = 8
+                self.scrollbar_color = "#606060"
+                self.scrollbar_hover_color = "#909090"
+                self.trough_color = "#0F0F0F"
+                self.scrollbar_visible = False
+                self.scrollbar_rect = None
+                self.scrollbar_dragging = False
+                self.last_y = 0
+                
+                # Configuration du canvas
+                self.configure(
+                    width=self.scrollbar_width,
+                    bg=self.trough_color,
+                    highlightthickness=0,
+                    relief="flat",
+                    bd=0
+                )
+                
+                # Bindings
+                self.bind("<Enter>", self.on_enter)
+                self.bind("<Leave>", self.on_leave)
+                self.bind("<Button-1>", self.on_click)
+                self.bind("<B1-Motion>", self.on_drag)
+                self.bind("<ButtonRelease-1>", self.on_release)
+                self.bind("<MouseWheel>", self.on_mousewheel)
+                
+            def set_scrollable_widget(self, widget):
+                self.scrollable_widget = widget
+                self.update_scrollbar()
+                
+            def on_enter(self, event):
+                self.scrollbar_color = self.scrollbar_hover_color
+                self.draw_scrollbar()
+                
+            def on_leave(self, event):
+                if not self.scrollbar_dragging:
+                    self.scrollbar_color = "#606060"
+                    self.draw_scrollbar()
+                    
+            def on_click(self, event):
+                if self.scrollbar_rect:
+                    x, y = event.x, event.y
+                    if self.coords(self.scrollbar_rect)[1] <= y <= self.coords(self.scrollbar_rect)[3]:
+                        self.scrollbar_dragging = True
+                        self.last_y = y
+                        
+            def on_drag(self, event):
+                if self.scrollbar_dragging and self.scrollable_widget:
+                    delta_y = event.y - self.last_y
+                    self.last_y = event.y
+                    
+                    # Calculer le déplacement relatif
+                    canvas_height = self.winfo_height()
+                    scrollbar_height = self.coords(self.scrollbar_rect)[3] - self.coords(self.scrollbar_rect)[1]
+                    max_scrollbar_y = canvas_height - scrollbar_height
+                    
+                    current_y = self.coords(self.scrollbar_rect)[1]
+                    new_y = max(0, min(max_scrollbar_y, current_y + delta_y))
+                    
+                    # Mettre à jour la position de la scrollbar
+                    self.coords(self.scrollbar_rect, 0, new_y, self.scrollbar_width, new_y + scrollbar_height)
+                    
+                    # Calculer la position relative pour le widget
+                    if max_scrollbar_y > 0:
+                        relative_pos = new_y / max_scrollbar_y
+                        self.scrollable_widget.yview_moveto(relative_pos)
+                        
+            def on_release(self, event):
+                self.scrollbar_dragging = False
+                
+            def on_mousewheel(self, event):
+                if self.scrollable_widget:
+                    self.scrollable_widget.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                    self.update_scrollbar()
+                    
+            def draw_scrollbar(self):
+                self.delete("scrollbar")
+                if self.scrollbar_visible:
+                    self.scrollbar_rect = self.create_rectangle(
+                        0, 0, self.scrollbar_width, 50,
+                        fill=self.scrollbar_color,
+                        outline="",
+                        tags="scrollbar"
+                    )
+                    
+            def update_scrollbar(self):
+                if not self.scrollable_widget:
+                    return
+                    
+                # Obtenir les informations de scroll
+                try:
+                    first, last = self.scrollable_widget.yview()
+                except Exception as e:
+                    print(f"Erreur lors de la mise à jour de la scrollbar: {e}")
+                    return
+                    
+                if first == 0 and last == 1:
+                    # Pas besoin de scrollbar
+                    self.scrollbar_visible = False
+                    self.draw_scrollbar()
+                    return
+                    
+                self.scrollbar_visible = True
+                
+                # Calculer la taille et position de la scrollbar
+                canvas_height = self.winfo_height()
+                if canvas_height <= 0:
+                    return
+                    
+                scrollbar_height = max(30, int(canvas_height * (last - first)))
+                scrollbar_y = int(canvas_height * first)
+                
+                # Dessiner la scrollbar
+                self.delete("scrollbar")
+                self.scrollbar_rect = self.create_rectangle(
+                    0, scrollbar_y,
+                    self.scrollbar_width, scrollbar_y + scrollbar_height,
+                    fill=self.scrollbar_color,
+                    outline="",
+                    tags="scrollbar"
+                )
+        
+        # Créer la scrollbar personnalisée
+        scrollbar = YouTubeScrollbar(self.root)
+        scrollable_frame = tk.Frame(canvas, bg=self.spotify_black, relief="flat", bd=0)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        
+        # Configurer la scrollbar personnalisée
+        scrollbar.set_scrollable_widget(canvas)
+        canvas.configure(yscrollcommand=scrollbar.update_scrollbar)
+        
+        # Frame principal avec dégradé
+        main_frame = tk.Frame(scrollable_frame, bg=self.spotify_black, relief="flat", bd=0)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # En-tête avec logo et titre
+        header_frame = tk.Frame(main_frame, bg=self.spotify_black, relief="flat", bd=0)
+        header_frame.pack(fill=tk.X, pady=(0, 30))
+        
+        # Logo et titre
+        logo_frame = tk.Frame(header_frame, bg=self.spotify_black, relief="flat", bd=0)
+        logo_frame.pack()
+        
+        # Titre principal avec effet de dégradé
+        title_label = tk.Label(logo_frame, 
+                              text="🎵 Spotag", 
+                              font=("Segoe UI", 32, "bold"),
+                              fg=self.spotify_green,
+                              bg=self.spotify_black)
+        title_label.pack()
+        
+        subtitle_label = tk.Label(logo_frame, 
+                                 text="Spotify NFC pour PC", 
+                                 font=("Segoe UI", 16),
+                                 fg=self.spotify_light_gray,
+                                 bg=self.spotify_black)
+        subtitle_label.pack()
+        
+        # Section des boutons de contrôle
+        control_frame = tk.Frame(main_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        control_frame.pack(fill=tk.X, pady=(0, 25), padx=5)
+        
+        # Titre de section
+        section_title = tk.Label(control_frame, 
+                                text="Contrôles", 
+                                font=("Segoe UI", 14, "bold"),
+                                fg=self.spotify_white,
+                                bg=self.spotify_dark_gray)
+        section_title.pack(pady=(20, 15))
+        
+        # Boutons de contrôle
+        button_frame = tk.Frame(control_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        button_frame.pack(pady=20)
+        
+        self.minimize_button = ModernButton(button_frame, 
+                                          text="Minimiser",
+                                          command=self.hide_window,
+                                          bg=self.spotify_medium_gray,
+                                          active_bg="#505050",
+                                          width=120, height=50,
+                                          icon="➖")
+        self.minimize_button.pack(side=tk.LEFT, padx=10)
+        
+        # URL du serveur
+        url_frame = tk.Frame(control_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        url_frame.pack(pady=20)
+        
+        url_label = tk.Label(url_frame, 
+                            text="URL du serveur:", 
+                            font=("Segoe UI", 10, "bold"), 
+                            fg=self.spotify_white, 
+                            bg=self.spotify_dark_gray)
+        url_label.pack()
+        
+        local_ip = self.get_local_ip()
+        self.url_label = tk.Label(url_frame, 
+                                 text=f"http://{local_ip}:5000/spotify",
+                                 font=("Consolas", 11),
+                                 fg=self.spotify_green,
+                                 bg=self.spotify_dark_gray)
+        self.url_label.pack(pady=(8, 0))
+        
+        # Section du convertisseur
+        converter_frame = tk.Frame(main_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        converter_frame.pack(fill=tk.X, pady=(0, 25), padx=5)
+        
+        # Titre de section
+        converter_title = tk.Label(converter_frame, 
+                                  text="Convertisseur d'URL Spotify", 
+                                  font=("Segoe UI", 14, "bold"),
+                                  fg=self.spotify_white,
+                                  bg=self.spotify_dark_gray)
+        converter_title.pack(pady=(20, 15))
+        
+        # Champ de saisie du lien
+        link_frame = tk.Frame(converter_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        link_frame.pack(fill=tk.X, pady=15, padx=20)
+        
+        link_label = tk.Label(link_frame, 
+                             text="Lien Spotify:", 
+                             font=("Segoe UI", 10, "bold"), 
+                             fg=self.spotify_white, 
+                             bg=self.spotify_dark_gray)
+        link_label.pack(anchor=tk.W)
+        
+        self.link_entry = ModernEntry(link_frame, 
+                                     placeholder="https://open.spotify.com/track/...",
+                                     width=50)
+        self.link_entry.pack(fill=tk.X, pady=(8, 0))
+        
+        # Lier l'événement de changement pour la conversion automatique
+        self.link_entry.entry.bind('<KeyRelease>', self.on_link_change)
+        
+        # Champ de résultat
+        result_frame = tk.Frame(converter_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        result_frame.pack(fill=tk.X, pady=(0, 20), padx=20)
+        
+        result_label = tk.Label(result_frame, 
+                               text="URL Spotag:", 
+                               font=("Segoe UI", 10, "bold"), 
+                               fg=self.spotify_white, 
+                               bg=self.spotify_dark_gray)
+        result_label.pack(anchor=tk.W)
+        
+        # Frame pour l'entry et le bouton copier
+        result_input_frame = tk.Frame(result_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        result_input_frame.pack(fill=tk.X, pady=(8, 0))
+        
+        self.result_entry = ModernEntry(result_input_frame, 
+                                       placeholder="Entrez un lien Spotify valide",
+                                       width=50)
+        self.result_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Définir le champ URL Spotag en lecture seule
+        self.result_entry.set_readonly(True)
+        
+        copy_button = ModernButton(result_input_frame, 
+                                  text="Copier",
+                                  command=lambda: self.copy_to_clipboard(self.result_entry.get()),
+                                  bg=self.spotify_medium_gray,
+                                  active_bg="#505050",
+                                  width=100, height=45,
+                                  icon="📋")
+        copy_button.pack(side=tk.RIGHT, padx=(15, 0))
+        
+        # Footer
+        footer_frame = tk.Frame(main_frame, bg=self.spotify_black, relief="flat", bd=0)
+        footer_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        footer_text = tk.Label(footer_frame, 
+                              text="Développé avec ♥ par AlexM00n", 
+                              font=("Segoe UI", 9),
+                              fg=self.spotify_light_gray,
+                              bg=self.spotify_black)
+        footer_text.pack()
+        
+        # Configurer le scroll avec la scrollbar YouTube
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Centrer le contenu dans le canvas
+        def center_content():
+            canvas.update_idletasks()
+            canvas_width = canvas.winfo_width()
+            frame_width = scrollable_frame.winfo_reqwidth()
+            if frame_width < canvas_width:
+                x_offset = (canvas_width - frame_width) // 2
+                canvas.coords(canvas.find_withtag("all")[0], x_offset, 0)
+        
+        # Centrer après le chargement et lors du redimensionnement
+        self.root.after(100, center_content)
+        canvas.bind('<Configure>', lambda e: center_content())
+        
+        # Lier les événements de scroll
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            scrollbar.update_scrollbar()
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    
+    def setup_system_tray(self):
+        """Configure l'icône de la barre système"""
+        try:
+            # Créer l'icône pour la barre système
+            tray_image = self.create_tray_image()
+            
+            # Menu contextuel pour la barre système
+            menu = pystray.Menu(
+                pystray.MenuItem("Afficher Spotag", self.show_window),
+                pystray.MenuItem("Masquer Spotag", self.hide_window),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Quitter", self.quit_application)
+            )
+            
+            self.tray_icon = pystray.Icon("Spotag", tray_image, "Spotag - Spotify NFC", menu)
+            
+            # Démarrer l'icône de la barre système dans un thread séparé
+            tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+            tray_thread.start()
+            
+        except Exception as e:
+            print(f"Erreur lors de la configuration de la barre système: {e}")
+    
+    def create_tray_image(self):
+        """Crée l'icône pour la barre système"""
+        try:
+            # Essayer de charger l'icône spotag2.png
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            icon_paths = [
+                os.path.join(current_dir, "spotag2.png"),
+                os.path.join(current_dir, "spotag.ico"),
+                "spotag2.png",
+                "spotag.ico"
+            ]
+            
+            for icon_path in icon_paths:
+                if os.path.exists(icon_path):
+                    try:
+                        if icon_path.endswith('.png'):
+                            icon = Image.open(icon_path)
+                        else:
+                            # Convertir ICO en PNG
+                            icon = Image.open(icon_path)
+                        
+                        # Redimensionner à 64x64 pour la barre système
+                        icon = icon.resize((64, 64), Image.Resampling.LANCZOS)
+                        return icon
+                    except Exception as e:
+                        print(f"Erreur avec {icon_path}: {e}")
+                        continue
+        except Exception as e:
+            print(f"Erreur lors du chargement de l'icône: {e}")
+        
+        # Fallback: Icône simple (cercle vert façon Spotify)
+        image = Image.new("RGB", (64, 64), (15, 15, 15))
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((8, 8, 56, 56), fill=(29, 185, 84))
+        # Ajouter un petit symbole musical
+        draw.text((32, 32), "♪", fill="white", anchor="mm")
+        return image
+    
+    def show_window(self, icon=None, item=None):
+        """Affiche la fenêtre principale"""
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+    
+    def hide_window(self, icon=None, item=None):
+        """Masque la fenêtre principale"""
+        self.root.withdraw()
+    
+    def quit_application(self, icon=None, item=None):
+        """Quitte complètement l'application"""
+        if self.tray_icon:
+            self.tray_icon.stop()
+        self.save_config()
+        self.root.quit()
+        os._exit(0)
+        
+    def load_config(self):
+        try:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"Erreur lors du chargement de la configuration: {e}")
+        return DEFAULT_CONFIG.copy()
+    
+    def save_config(self):
+        try:
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde de la configuration: {e}")
+    
+    def on_link_change(self, event=None):
+        self.convert_link()
+    
+    def convert_link(self):
+        link = self.link_entry.get().strip()
+        
+        if not link or link == "https://open.spotify.com/track/...":
+            self.result_entry.set_text("Entrez un lien Spotify valide")
+            return
+        
+        if not link.startswith("https://open.spotify.com/"):
+            self.result_entry.set_text("Lien Spotify invalide")
+            return
+        
+        try:
+            parts = link.split('/')
+            if len(parts) >= 5:
+                # Gérer les URLs avec locale (ex: /intl-fr/album/)
+                if len(parts) >= 6 and parts[3].startswith('intl-'):
+                    # URL avec locale: https://open.spotify.com/intl-fr/album/Abcde1245
+                    spotify_type = parts[4]  # album, track, playlist, etc.
+                    spotify_id = parts[5].split('?')[0]
+                else:
+                    # URL normale: https://open.spotify.com/album/Abcde1245
+                    spotify_type = parts[3]
+                    spotify_id = parts[4].split('?')[0]
+                
+                # Générer l'URI Spotify
+                spotify_uri = f"spotify:{spotify_type}:{spotify_id}"
+                self.result_entry.set_text(spotify_uri)
+            else:
+                raise ValueError("Format d'URL invalide")
+        except Exception as e:
+            self.result_entry.set_text(f"Erreur: {str(e)}")
+    
+    def copy_to_clipboard(self, text):
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            messagebox.showinfo("Succès", "Texte copié dans le presse-papiers!")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Impossible de copier: {e}")
+    
+    def on_closing(self):
+        # Minimiser dans la barre système au lieu de fermer
+        self.hide_window()
+        # Optionnel: Afficher une notification
+        if self.tray_icon:
+            try:
+                self.tray_icon.notify("Spotag a été minimisé dans la barre système", "Spotag")
+            except:
+                pass  # Ignorer les erreurs de notification
 
-def quit_app(icon, item):
-    icon.stop()
-    os._exit(0)
 
-def start_tray():
-    icon = pystray.Icon("Spotify NFC", create_image(), menu=pystray.Menu(
-        pystray.MenuItem("Quitter", quit_app)
-    ))
-    icon.run()
+
+
 
 if __name__ == "__main__":
+    # Vérifier si une instance est déjà en cours d'exécution
+    import socket
+    try:
+        # Essayer de créer un socket sur un port spécifique pour détecter les instances multiples
+        lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        lock_socket.bind(('localhost', 5001))  # Port de verrouillage
+        lock_socket.close()
+    except socket.error:
+        # Une instance est déjà en cours d'exécution
+        import tkinter.messagebox as msgbox
+        msgbox.showwarning("Spotag", "Une instance de Spotag est déjà en cours d'exécution.")
+        sys.exit(1)
+    
     # Créer l'interface graphique
     root = tk.Tk()
     app_gui = SpotifyNFCGUI(root)
