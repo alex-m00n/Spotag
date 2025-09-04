@@ -792,6 +792,36 @@ class SpotifyNFCGUI:
                                   icon="📋")
         copy_button.pack(side=tk.RIGHT, padx=(15, 0))
         
+        # Affichage séparé de l'URI Spotify
+        uri_frame = tk.Frame(result_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        uri_frame.pack(fill=tk.X, pady=(12, 0))
+        
+        uri_label = tk.Label(uri_frame, 
+                             text="URI Spotify:", 
+                             font=("Segoe UI", 10, "bold"), 
+                             fg=self.spotify_white, 
+                             bg=self.spotify_dark_gray)
+        uri_label.pack(anchor=tk.W)
+        
+        # Frame pour l'entry et le bouton copier de l'URI
+        uri_input_frame = tk.Frame(uri_frame, bg=self.spotify_dark_gray, relief="flat", bd=0)
+        uri_input_frame.pack(fill=tk.X, pady=(8, 0))
+
+        self.uri_entry = ModernEntry(uri_input_frame, 
+                                     placeholder="spotify:...",
+                                     width=50)
+        self.uri_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.uri_entry.set_readonly(True)
+
+        uri_copy_button = ModernButton(uri_input_frame, 
+                                       text="Copier",
+                                       command=lambda: self.copy_to_clipboard(self.uri_entry.get()),
+                                       bg=self.spotify_medium_gray,
+                                       active_bg="#505050",
+                                       width=100, height=45,
+                                       icon="📋")
+        uri_copy_button.pack(side=tk.RIGHT, padx=(15, 0))
+        
         # Footer
         footer_frame = tk.Frame(main_frame, bg=self.spotify_black, relief="flat", bd=0)
         footer_frame.pack(fill=tk.X, pady=(20, 0))
@@ -949,9 +979,14 @@ class SpotifyNFCGUI:
                     spotify_type = parts[3]
                     spotify_id = parts[4].split('?')[0]
                 
-                # Générer l'URI Spotify
+                # Générer l'URI Spotify puis l'URL Spotag complète
                 spotify_uri = f"spotify:{spotify_type}:{spotify_id}"
-                self.result_entry.set_text(spotify_uri)
+                local_ip = self.get_local_ip()
+                spotag_url = f"http://{local_ip}:5000/spotify?link={spotify_uri}"
+                self.result_entry.set_text(spotag_url)
+                # Renseigner aussi le champ URI
+                if hasattr(self, 'uri_entry'):
+                    self.uri_entry.set_text(spotify_uri)
             else:
                 raise ValueError("Format d'URL invalide")
         except Exception as e:
