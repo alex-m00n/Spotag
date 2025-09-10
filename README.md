@@ -1,7 +1,9 @@
 ![SpotagLogo](https://raw.githubusercontent.com/alex-m00n/Spotag/main/spotag.png)
+
 # 🎵 Spotag - Spotify NFC pour PC
 
-Une application Python qui permet d'ouvrir des liens Spotify sur votre PC via un NFC scanné avec votre téléphone
+Une application Python qui permet d'ouvrir des liens Spotify sur votre PC via un NFC scanné avec votre téléphone.
+[Lien du site](https://spotag.vercel.app)
 
 ## ✨ Fonctionnalités
 
@@ -18,13 +20,12 @@ Une application Python qui permet d'ouvrir des liens Spotify sur votre PC via un
 L'application s'ouvre avec une interface moderne comprenant :
 
 1. **Contrôle du Serveur**
-   - Bouton "Démarrer le Serveur" pour activer le serveur web
-   - Bouton "Arrêter le Serveur" pour le désactiver
-   - Affichage de l'URL du serveur (par défaut : `http://192.0.0.1:5000/spotify`soit `http://localhost:5000/spotify`)
+   - Affichage de l'URL du serveur (par défaut : `http://192.0.0.1:5000/spotify` autrement dit : `http://localhost:5000/spotify`)
 
 2. **Conversion de Liens Spotify en liens Spotag**
    - Zone de saisie pour entrer un lien Spotify (https://open.spotify.com/playlist/Abcde12345)
    - Zone de sortie en lien Spotag (http://192.0.0.1:5000/spotify?link=spotify:playlisty:Abcde12345)
+   - Zone de sortie en lien URI Spotify (spotify:playlisty:Abcde12345)
 
 ### Utilisation avec NFC
 
@@ -76,3 +77,5 @@ N'hésitez pas à contribuer en :
 
 
 **Développé avec ❤️ par AlexM00n**
+
+![SpotagPreview](https://raw.githubusercontent.com/alex-m00n/Spotag/main/spotag-preview.png)
